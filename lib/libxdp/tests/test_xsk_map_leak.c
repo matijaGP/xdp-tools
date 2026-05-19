@@ -2,12 +2,14 @@
 
 #include <errno.h>
 #include <linux/err.h>
+#include <linux/membarrier.h>
 #include <net/if.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 #include "test_utils.h"
@@ -41,6 +43,15 @@ static struct xsk_socket_info *xsks[MAX_NUM_QUEUES];
 
 #define FRAME_SIZE 64
 #define NUM_FRAMES (XSK_RING_CONS__DEFAULT_NUM_DESCS * 2)
+
+/*
+ * Trigger synchronize_rcu() in kernel, taken from kernel's
+ * bpf selftests.
+ */
+static int kern_sync_rcu(void)
+{
+	return syscall(__NR_membarrier, MEMBARRIER_CMD_SHARED, 0, 0);
+}
 
 static int count_bpf_maps(bool list_maps)
 {
@@ -227,6 +238,7 @@ int main(int argc, char **argv)
 	}
 
 	create_and_tear_down_xsk();
+	kern_sync_rcu();
 
 	num_maps_after = count_bpf_maps(true);
 	if (num_maps_after < 0) {
